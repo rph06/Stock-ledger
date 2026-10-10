@@ -1,0 +1,862 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#0e6b5b"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png"></head><body>
+<title>Stock Ledger</title>
+<style>
+/* Layout: one narrow ledger column. Summary strip on top, entry form, then a dated list or a per-distributor table. */
+:root {
+  --bg: #eef3f1;
+  --surface: #ffffff;
+  --field: #f6f9f8;
+  --ink: #14211e;
+  --muted: #5b6b66;
+  --line: #d6e0dc;
+  --accent: #0e6b5b;
+  --accent-ink: #ffffff;
+  --due: #a94a06;
+  --due-bg: #fbebdd;
+  --ok: #1e7a3e;
+  --ok-bg: #e1f1e6;
+  --info: #245a8f;
+  --info-bg: #e3edf8;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1a17;
+    --surface: #172622;
+    --field: #11201c;
+    --ink: #e6f0ed;
+    --muted: #93a8a1;
+    --line: #29403a;
+    --accent: #4cc7ac;
+    --accent-ink: #05211b;
+    --due: #f0a468;
+    --due-bg: #3a2616;
+    --ok: #6fd08f;
+    --ok-bg: #17331f;
+    --info: #8ebcf0;
+    --info-bg: #182a3d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1a17;
+  --surface: #172622;
+  --field: #11201c;
+  --ink: #e6f0ed;
+  --muted: #93a8a1;
+  --line: #29403a;
+  --accent: #4cc7ac;
+  --accent-ink: #05211b;
+  --due: #f0a468;
+  --due-bg: #3a2616;
+  --ok: #6fd08f;
+  --ok-bg: #17331f;
+  --info: #8ebcf0;
+  --info-bg: #182a3d;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+  padding-inline: 16px;
+  padding-block: 20px 40px;
+}
+.wrap { max-width: 680px; margin-inline: auto; display: flex; flex-direction: column; gap: 16px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: 13px; font-weight: 600; margin: 0; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.sub { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 500; }
+
+header { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.sync { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.sync::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); display: inline-block; }
+.sync.ok::before { background: var(--ok); }
+.sync.local::before { background: var(--due); }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+
+/* Summary */
+.summary { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.summary-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.figs3 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; }
+.fig.sale .value { color: var(--accent); }
+.fig { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fig .label { font-size: 11.5px; color: var(--muted); }
+.fig .value { font-size: 17px; overflow-wrap: anywhere; }
+.fig.due .value { color: var(--due); }
+
+/* Form */
+form { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.form-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field.full { grid-column: 1 / -1; }
+label { font-size: 13px; font-weight: 500; }
+label small { font-weight: 400; color: var(--muted); }
+input, select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 11px;
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+}
+input[type="number"] { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+input::placeholder { color: var(--muted); opacity: 0.8; }
+input:focus-visible, select:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.sup-wrap { position: relative; }
+.sup-menu { position: absolute; z-index: 5; inset-inline: 0; top: calc(100% + 4px); margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; max-height: 220px; overflow-y: auto; box-shadow: 0 6px 18px rgba(0,0,0,0.12); }
+.sup-menu li { padding: 10px 10px; min-height: 44px; display: flex; align-items: center; border-radius: 6px; cursor: pointer; overflow-wrap: anywhere; }
+.sup-menu li:hover, .sup-menu li[aria-selected="true"] { background: var(--field); }
+.backup { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.backup .actions button { flex: 1 1 130px; }
+.backup.stale #bk-status { color: var(--due); font-weight: 600; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 0; }
+.preview { font-size: 13.5px; padding: 8px 10px; border-radius: 8px; background: var(--field); border: 1px dashed var(--line); }
+.preview b { font-family: var(--font-num); font-weight: 600; }
+.error { color: var(--due); font-size: 13.5px; margin: 0; min-height: 0; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+button {
+  font: inherit;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 10px 16px;
+  min-height: 44px;
+  cursor: pointer;
+}
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); flex: 1 1 160px; }
+button:disabled { opacity: 0.55; cursor: not-allowed; }
+button.small { min-height: 36px; padding: 6px 12px; font-size: 13px; font-weight: 500; }
+button.danger { color: var(--due); border-color: var(--due); }
+
+/* Tabs */
+.tabs { display: flex; gap: 6px; }
+.tab { flex: 1; background: transparent; border-color: transparent; color: var(--muted); border-radius: 8px; }
+.tab[aria-selected="true"] { background: var(--surface); color: var(--ink); border-color: var(--line); }
+
+/* Entries */
+.day { display: flex; flex-direction: column; gap: 8px; }
+.day-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; padding-inline: 2px; }
+.day-head strong { font-size: 14px; }
+.day-head span { font-size: 12.5px; color: var(--muted); }
+.entry { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.entry-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.entry-head .name { font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
+.inv { font-size: 12.5px; color: var(--muted); font-family: var(--font-num); }
+.pill { margin-left: auto; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.pill.due { background: var(--due-bg); color: var(--due); }
+.pill.ok { background: var(--ok-bg); color: var(--ok); }
+.pill.info { background: var(--info-bg); color: var(--info); }
+dl.figs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+dl.figs div { min-width: 0; }
+dl.figs dt { font-size: 11.5px; color: var(--muted); }
+dl.figs dd { margin: 0; overflow-wrap: anywhere; }
+.entry-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.entry-foot .note { color: var(--muted); font-size: 13px; flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; }
+.confirm { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+
+/* Daily sale row */
+.sale-row { padding: 10px 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sale-row .grow { flex: 1 1 150px; min-width: 0; }
+.sale-row .label { font-size: 11.5px; color: var(--muted); }
+.sale-row .sale-amt { font-size: 17px; color: var(--accent); overflow-wrap: anywhere; }
+.sale-row .note { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.sale-row.none { color: var(--muted); font-size: 13.5px; }
+.sale-row .net { font-size: 13px; color: var(--muted); }
+.sale-row .net strong { color: var(--ink); }
+.sale-row .net strong.neg { color: var(--due); }
+.fig.net { grid-column: 1 / -1; padding: 10px 12px; background: var(--field); border: 1px solid var(--line); border-radius: 8px; }
+.fig.net .value { font-size: 20px; color: var(--accent); }
+.fig.net.neg .value { color: var(--due); }
+.sale-row .confirm { margin-right: auto; }
+
+/* Daily sale with distributor split */
+.dd { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.dd-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.dd-top strong { font-size: 14px; }
+.dd-net { font-size: 13px; color: var(--muted); }
+.dd-net b { color: var(--accent); font-family: var(--font-num); font-weight: 600; }
+.dd-net b.neg { color: var(--due); }
+.dd-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.dd-list li { display: flex; flex-direction: column; gap: 4px; }
+.dd-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.dd-row .nm { min-width: 0; overflow-wrap: anywhere; }
+.dd-row .amt { white-space: nowrap; }
+.dd-row .pc { color: var(--muted); font-size: 12px; margin-left: 6px; }
+.dd-bar { height: 6px; border-radius: 3px; background: var(--field); border: 1px solid var(--line); overflow: hidden; }
+.dd-bar span { display: block; height: 100%; background: var(--accent); }
+.dd-none { color: var(--muted); font-size: 13.5px; margin: 0; }
+
+/* Distributor table */
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 10px 12px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 120px; }
+th { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+tfoot td { border-bottom: 0; font-weight: 600; }
+td.due { color: var(--due); }
+
+.empty { padding: 28px 18px; text-align: center; color: var(--muted); }
+.empty strong { display: block; color: var(--ink); font-size: 16px; margin-bottom: 4px; }
+
+@media (max-width: 420px) {
+  .grid2 { grid-template-columns: 1fr; }
+  .fig .value { font-size: 15px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  button { transition: background-color 0.15s, border-color 0.15s; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Stock Ledger</h1>
+      <p class="sub">Invoices received and payments made to distributors</p>
+    </div>
+    <span id="sync" class="sync" role="status">Connecting…</span>
+  </header>
+
+  <section class="card summary" aria-labelledby="sum-h">
+    <div class="summary-top">
+      <h2 id="sum-h">Summary</h2>
+      <div style="min-width:0">
+        <label for="period" class="sub" style="margin:0 6px 0 0">Period</label>
+        <select id="period" style="width:auto;min-height:36px;padding:6px 10px"></select>
+      </div>
+    </div>
+    <div class="figs3">
+      <div class="fig sale"><span class="label">Daily sales</span><span class="value num" id="s-sale">Rs 0</span></div>
+      <div class="fig"><span class="label">Purchases (stock received)</span><span class="value num" id="s-recv">Rs 0</span></div>
+      <div class="fig"><span class="label">Paid to distributors</span><span class="value num" id="s-paid">Rs 0</span></div>
+      <div class="fig due"><span class="label">Still owed (all time)</span><span class="value num" id="s-due">Rs 0</span></div>
+    </div>
+  </section>
+
+  <form id="sale-form" class="card" autocomplete="off" novalidate>
+    <div class="form-head"><h2>Daily sale</h2></div>
+    <div class="grid2">
+      <div class="field">
+        <label for="s-date">Date</label>
+        <input id="s-date" type="date" required>
+      </div>
+      <div class="field">
+        <label for="s-amount">Total sale (Rs)</label>
+        <input id="s-amount" type="number" inputmode="decimal" min="0" step="any" placeholder="0">
+      </div>
+      <div class="field full">
+        <label for="s-note">Note <small>(optional)</small></label>
+        <input id="s-note" type="text" maxlength="140" placeholder="e.g. OPD and IPD, counter total">
+      </div>
+    </div>
+    <p class="hint">One sale per day. Saving the same date again replaces it.</p>
+    <div id="sale-preview" class="preview" aria-live="polite"></div>
+    <p id="sale-err" class="error" role="alert" hidden></p>
+    <div class="actions">
+      <button type="submit" id="sale-save" class="primary" disabled>Save sale</button>
+    </div>
+  </form>
+
+  <form id="form" class="card" autocomplete="off" novalidate>
+    <div class="form-head">
+      <h2 id="form-title">Purchase invoice</h2>
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <label for="f-date">Date</label>
+        <input id="f-date" type="date" required>
+      </div>
+      <div class="field">
+        <label for="f-inv">Invoice no. <small>(optional)</small></label>
+        <input id="f-inv" type="text" placeholder="e.g. INV-2041" maxlength="40">
+      </div>
+      <div class="field full">
+        <label for="f-sup">Distributor</label>
+        <div class="sup-wrap">
+          <input id="f-sup" type="text" placeholder="Distributor name" maxlength="80" required autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sup-menu">
+          <ul id="sup-menu" class="sup-menu" role="listbox" hidden></ul>
+        </div>
+      </div>
+      <div class="field">
+        <label for="f-stock">Stock received (Rs)</label>
+        <input id="f-stock" type="number" inputmode="decimal" min="0" step="any" placeholder="0">
+      </div>
+      <div class="field">
+        <label for="f-paid">Paid to distributor (Rs)</label>
+        <input id="f-paid" type="number" inputmode="decimal" min="0" step="any" placeholder="0">
+      </div>
+      <div class="field full">
+        <label for="f-note">Note <small>(optional)</small></label>
+        <input id="f-note" type="text" placeholder="e.g. cheque no., credit period" maxlength="140">
+      </div>
+    </div>
+    <p class="hint">To record a payment on its own, enter 0 for stock received.</p>
+    <div id="preview" class="preview" aria-live="polite">Balance on this entry: <b>Rs 0</b></div>
+    <p id="err" class="error" role="alert" hidden></p>
+    <div class="actions">
+      <button type="submit" id="save" class="primary" disabled>Add entry</button>
+      <button type="button" id="cancel" hidden>Cancel edit</button>
+    </div>
+  </form>
+
+  <section class="card backup" aria-labelledby="bk-h">
+    <div class="form-head"><h2 id="bk-h">Backup</h2><span id="bk-status" class="sub" style="margin:0"></span></div>
+    <p class="hint">Entries are saved in this browser on this computer. Download a backup regularly so nothing is lost.</p>
+    <div class="actions">
+      <button type="button" id="bk-save" class="primary">Download backup</button>
+      <button type="button" id="bk-csv">Export CSV</button>
+      <button type="button" id="bk-restore">Restore backup</button>
+    </div>
+    <input id="bk-file" type="file" accept=".json,application/json" hidden>
+    <p id="bk-msg" class="hint" role="status" hidden></p>
+  </section>
+
+  <div class="tabs" role="tablist" aria-label="Views">
+    <button class="tab" role="tab" id="tab-entries" data-view="entries" aria-selected="true">Daily</button>
+    <button class="tab" role="tab" id="tab-sup" data-view="suppliers" aria-selected="false">By distributor</button>
+  </div>
+
+  <div id="list" role="tabpanel" aria-live="polite"></div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var rows = [];
+  var sales = [];
+  var loaded = false;
+  var store = null;
+  var view = 'entries';
+  var editingId = null;
+  var confirmId = null;
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function todayStr() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  var period = todayStr().slice(0, 7);
+
+  function fmt(n) { return (Math.round(n * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 }); }
+  function money(n) { return (n < 0 ? '-' : '') + 'Rs ' + fmt(Math.abs(n)); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function dayLabel(s) {
+    var p = s.split('-');
+    return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function monthLabel(s) {
+    var p = s.split('-');
+    return new Date(+p[0], +p[1] - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  }
+  function num(v) { var n = parseFloat(v); return isFinite(n) && n > 0 ? n : 0; }
+
+  /* ---------- storage ---------- */
+  function setSync(kind, text) { var el = $('sync'); el.className = 'sync ' + kind; el.textContent = text; }
+
+  function useLocal() {
+    var KEY = 'stock-ledger-entries';
+    try { rows = JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { rows = []; }
+    function persist() { try { localStorage.setItem(KEY, JSON.stringify(rows)); } catch (e) {} }
+    store = {
+      save: function (id, data) {
+        if (id) { rows = rows.map(function (r) { return r.id === id ? Object.assign({ id: id }, data) : r; }); }
+        else { rows = rows.concat([Object.assign({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }, data)]); }
+        persist(); return Promise.resolve();
+      },
+      remove: function (id) { rows = rows.filter(function (r) { return r.id !== id; }); persist(); return Promise.resolve(); }
+    };
+    var SKEY = 'stock-ledger-sales';
+    try { sales = JSON.parse(localStorage.getItem(SKEY) || '[]'); } catch (e) { sales = []; }
+    function persistSales() { try { localStorage.setItem(SKEY, JSON.stringify(sales)); } catch (e) {} }
+    store.saveSale = function (date, data) {
+      sales = sales.filter(function (s) { return s.id !== date; }).concat([Object.assign({ id: date }, data)]);
+      persistSales(); return Promise.resolve();
+    };
+    store.removeSale = function (date) {
+      sales = sales.filter(function (s) { return s.id !== date; });
+      persistSales(); return Promise.resolve();
+    };
+    loaded = true;
+    setSync('local', 'Saved on this device only');
+    $('save').disabled = false;
+    render();
+  }
+
+  function init() {
+    render();
+    var p = (window.claude && window.claude.use) ? window.claude.use('db') : Promise.resolve(null);
+    p.then(function (db) {
+      if (!db) { useLocal(); return; }
+      var col = db.collection('invoices');
+      store = {
+        save: function (id, data) { return id ? col.doc(id).set(data) : col.add(data); },
+        remove: function (id) { return col.doc(id).delete(); }
+      };
+      var scol = db.collection('sales');
+      store.saveSale = function (date, data) { return scol.doc(date).set(data); };
+      store.removeSale = function (date) { return scol.doc(date).delete(); };
+      scol.onSnapshot(function (snap) {
+        sales = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+        render();
+      }, function () {});
+      $('save').disabled = false;
+      setSync('ok', 'Saved to your account');
+      col.onSnapshot(function (snap) {
+        rows = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
+        loaded = true;
+        render();
+      }, function () { setSync('local', 'Live sync stopped, reload the page'); });
+    }).catch(function () { useLocal(); });
+  }
+
+  /* ---------- derived data ---------- */
+  function sorted(list) {
+    return list.slice().sort(function (a, b) {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
+  }
+  function inPeriod(r) { return period === 'all' || (r.date || '').slice(0, 7) === period; }
+
+  function renderPeriod() {
+    var months = {};
+    months[todayStr().slice(0, 7)] = 1;
+    rows.forEach(function (r) { if (r.date) months[r.date.slice(0, 7)] = 1; });
+    if (period !== 'all') months[period] = 1;
+    var keys = Object.keys(months).sort().reverse();
+    var html = '<option value="all">All time</option>' + keys.map(function (k) {
+      return '<option value="' + k + '"' + (k === period ? ' selected' : '') + '>' + esc(monthLabel(k)) + '</option>';
+    }).join('');
+    var sel = $('period');
+    sel.innerHTML = html;
+    sel.value = period;
+  }
+
+  function renderSummary() {
+    var recv = 0, paid = 0, allRecv = 0, allPaid = 0;
+    rows.forEach(function (r) {
+      allRecv += num(r.stock); allPaid += num(r.paid);
+      if (inPeriod(r)) { recv += num(r.stock); paid += num(r.paid); }
+    });
+    var sl = 0;
+    sales.forEach(function (s) { if (period === 'all' || (s.date || '').slice(0, 7) === period) sl += num(s.amount); });
+    $('s-sale').textContent = money(sl);
+    $('s-recv').textContent = money(recv);
+    $('s-paid').textContent = money(paid);
+    $('s-due').textContent = money(allRecv - allPaid);
+  }
+
+  function renderSuppliers() {
+    var names = {};
+    rows.forEach(function (r) {
+      var k = (r.supplier || '').trim();
+      if (!k) return;
+      var key = k.toLowerCase();
+      if (!names[key]) names[key] = k;
+    });
+    supNames = Object.keys(names).sort().map(function (k) { return names[k]; });
+    updateSupMenu();
+  }
+
+  /* Distributor suggestions: shown only after the first letter is typed */
+  var supNames = [];
+  var supActive = -1;
+  function hideSupMenu() {
+    var m = $('sup-menu'); m.hidden = true; m.innerHTML = ''; supActive = -1;
+    $('f-sup').setAttribute('aria-expanded', 'false');
+  }
+  function updateSupMenu() {
+    var input = $('f-sup'), q = input.value.trim().toLowerCase();
+    if (!q || document.activeElement !== input) { hideSupMenu(); return; }
+    var matches = supNames.filter(function (n) { var l = n.toLowerCase(); return l.indexOf(q) === 0 && l !== q; });
+    if (!matches.length) { hideSupMenu(); return; }
+    var m = $('sup-menu');
+    m.innerHTML = matches.map(function (n, i) { return '<li role="option" data-i="' + i + '" data-v="' + esc(n) + '">' + esc(n) + '</li>'; }).join('');
+    m.hidden = false; supActive = -1;
+    input.setAttribute('aria-expanded', 'true');
+  }
+  function pickSup(v) {
+    var input = $('f-sup');
+    input.value = v; hideSupMenu();
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  (function () {
+    var input = $('f-sup'), menu = $('sup-menu');
+    input.addEventListener('input', updateSupMenu);
+    input.addEventListener('blur', function () { setTimeout(hideSupMenu, 120); });
+    input.addEventListener('keydown', function (e) {
+      var items = menu.querySelectorAll('li');
+      if (e.key === 'Escape') { hideSupMenu(); return; }
+      if (menu.hidden || !items.length) return;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        supActive = (supActive + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        items.forEach(function (li, i) { li.setAttribute('aria-selected', i === supActive ? 'true' : 'false'); });
+      } else if (e.key === 'Enter' && supActive >= 0) {
+        e.preventDefault(); pickSup(items[supActive].getAttribute('data-v'));
+      }
+    });
+    menu.addEventListener('mousedown', function (e) {
+      var li = e.target.closest ? e.target.closest('li') : null;
+      if (li) { e.preventDefault(); pickSup(li.getAttribute('data-v')); }
+    });
+  })();
+
+  function entryHtml(r) {
+    var stock = num(r.stock), paid = num(r.paid), bal = stock - paid;
+    var pill;
+    if (stock === 0) pill = '<span class="pill info">Payment only</span>';
+    else if (bal > 0) pill = '<span class="pill due">Due ' + esc(money(bal)) + '</span>';
+    else if (bal < 0) pill = '<span class="pill info">Extra ' + esc(money(-bal)) + ' paid</span>';
+    else pill = '<span class="pill ok">Settled</span>';
+    var foot;
+    if (confirmId === r.id) {
+      foot = '<span class="confirm">Delete this entry?</span>' +
+        '<button type="button" class="small danger" data-act="del-yes" data-id="' + esc(r.id) + '">Delete</button>' +
+        '<button type="button" class="small" data-act="del-no">Keep</button>';
+    } else {
+      foot = (r.note ? '<span class="note">' + esc(r.note) + '</span>' : '<span class="note"></span>') +
+        '<button type="button" class="small" data-act="edit" data-id="' + esc(r.id) + '">Edit</button>' +
+        '<button type="button" class="small" data-act="del" data-id="' + esc(r.id) + '">Delete</button>';
+    }
+    return '<article class="card entry">' +
+      '<div class="entry-head"><span class="name">' + esc(r.supplier) + '</span>' +
+      (r.invoiceNo ? '<span class="inv">#' + esc(r.invoiceNo) + '</span>' : '') + pill + '</div>' +
+      '<dl class="figs"><div><dt>Received</dt><dd class="num">' + esc(money(stock)) + '</dd></div>' +
+      '<div><dt>Paid</dt><dd class="num">' + esc(money(paid)) + '</dd></div>' +
+      '<div><dt>Entry balance</dt><dd class="num">' + esc(money(bal)) + '</dd></div></dl>' +
+      '<div class="entry-foot">' + foot + '</div></article>';
+  }
+
+  function dailyDistHtml() {
+    var days = {};
+    function day(date) { if (!days[date]) days[date] = { sale: null, recv: 0 }; return days[date]; }
+    rows.forEach(function (r) { if (inPeriod(r) && r.date) day(r.date).recv += num(r.stock); });
+    sales.forEach(function (s) { if ((period === 'all' || (s.date || '').slice(0, 7) === period) && s.date) day(s.date).sale = num(s.amount); });
+    var keys = Object.keys(days).sort().reverse();
+    if (!keys.length) return '';
+    var title = period === 'all' ? 'All time' : monthLabel(period);
+    var ts = 0, tp = 0;
+    var body = keys.map(function (k) {
+      var x = days[k]; ts += x.sale || 0; tp += x.recv;
+      return '<tr><td>' + esc(dayLabel(k)) + '</td><td class="num">' + (x.sale == null ? '\u2014' : esc(fmt(x.sale))) + '</td><td class="num">' + esc(fmt(x.recv)) + '</td></tr>';
+    }).join('');
+    return '<div class="day-head" style="margin-top:8px"><strong>Daily sale and purchases</strong><span>' + esc(title) + ' \u00b7 amounts in Rs</span></div>' +
+      '<div class="card table-scroll"><table><thead><tr><th>Date</th><th>Daily sale</th><th>Purchased</th></tr></thead><tbody>' + body +
+      '</tbody><tfoot><tr><td>Total</td><td class="num">' + esc(fmt(ts)) + '</td><td class="num">' + esc(fmt(tp)) + '</td></tr></tfoot></table></div>';
+  }
+
+  function renderList() {
+    var el = $('list');
+    if (!loaded) { el.innerHTML = '<div class="card empty">Loading your entries…</div>'; return; }
+    if (view === 'suppliers') {
+      var cutoff = period === 'all' ? '9999-99-99' : period + '-31';
+      var title = period === 'all' ? 'All time' : monthLabel(period);
+      var agg = {};
+      rows.forEach(function (r) {
+        var name = (r.supplier || '').trim(); if (!name) return;
+        var key = name.toLowerCase();
+        if (!agg[key]) agg[key] = { name: name, recv: 0, paid: 0, cr: 0, cp: 0 };
+        if (inPeriod(r)) { agg[key].recv += num(r.stock); agg[key].paid += num(r.paid); }
+        if ((r.date || '') <= cutoff) { agg[key].cr += num(r.stock); agg[key].cp += num(r.paid); }
+      });
+      var list = Object.keys(agg).map(function (k) { return agg[k]; })
+        .filter(function (a) { return a.recv > 0 || a.paid > 0 || a.cr - a.cp !== 0; })
+        .sort(function (a, b) { return b.recv - a.recv; });
+      if (!list.length) { el.innerHTML = '<div class="card empty"><strong>No distributor activity</strong>' + (rows.length ? 'Nothing was purchased or paid in this period. Choose another period above.' : 'Add your first purchase invoice above and each distributor\'s totals will appear here.') + '</div>' + dailyDistHtml(); return; }
+      var tr = 0, tp = 0, to = 0;
+      var body = list.map(function (a) {
+        tr += a.recv; tp += a.paid;
+        var b = a.cr - a.cp; to += b;
+        return '<tr><td>' + esc(a.name) + '</td><td class="num">' + esc(fmt(a.recv)) + '</td><td class="num">' + esc(fmt(a.paid)) + '</td><td class="num' + (b > 0 ? ' due' : '') + '">' + esc(fmt(b)) + '</td></tr>';
+      }).join('');
+      el.innerHTML = '<div class="day-head"><strong>Purchased from each distributor</strong><span>' + esc(title) + ' · amounts in Rs</span></div>' +
+        '<div class="card table-scroll"><table><thead><tr><th>Distributor</th><th>Purchased</th><th>Paid</th><th>' + (period === 'all' ? 'Owed' : 'Owed at month end') + '</th></tr></thead><tbody>' + body +
+        '</tbody><tfoot><tr><td>Total</td><td class="num">' + esc(fmt(tr)) + '</td><td class="num">' + esc(fmt(tp)) + '</td><td class="num">' + esc(fmt(to)) + '</td></tr></tfoot></table></div>' + dailyDistHtml();
+      return;
+    }
+    var shown = sorted(rows.filter(inPeriod));
+    var saleBy = {};
+    sales.forEach(function (s) { if (period === 'all' || (s.date || '').slice(0, 7) === period) saleBy[s.date] = s; });
+    var groups = [], idx = {};
+    shown.forEach(function (r) {
+      if (idx[r.date] == null) { idx[r.date] = groups.length; groups.push({ date: r.date, items: [] }); }
+      groups[idx[r.date]].items.push(r);
+    });
+    Object.keys(saleBy).forEach(function (d) {
+      if (idx[d] == null) { idx[d] = groups.length; groups.push({ date: d, items: [] }); }
+    });
+    groups.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+    if (!groups.length) {
+      el.innerHTML = '<div class="card empty"><strong>' + ((rows.length || sales.length) ? 'Nothing in this period' : 'No entries yet') + '</strong>' +
+        ((rows.length || sales.length) ? 'Choose another period, or add an entry above.' : 'Save the day\'s sale and add each purchase invoice. Every day will be listed here with its sale and purchases side by side.') + '</div>';
+      return;
+    }
+    el.innerHTML = groups.map(function (g) {
+      var rc = 0, pd = 0;
+      g.items.forEach(function (r) { rc += num(r.stock); pd += num(r.paid); });
+      var sale = saleBy[g.date], saleHtml;
+      if (sale) {
+        var act;
+        if (confirmId === 'sale:' + g.date) {
+          act = '<span class="confirm">Delete this sale?</span>' +
+            '<button type="button" class="small danger" data-act="sale-del-yes" data-date="' + esc(g.date) + '">Delete</button>' +
+            '<button type="button" class="small" data-act="del-no">Keep</button>';
+        } else {
+          act = '<button type="button" class="small" data-act="sale-edit" data-date="' + esc(g.date) + '">Edit</button>' +
+            '<button type="button" class="small" data-act="sale-del" data-date="' + esc(g.date) + '">Delete</button>';
+        }
+        saleHtml = '<div class="card sale-row"><div class="grow"><div class="label">Daily sale</div><div class="sale-amt num">' + esc(money(num(sale.amount))) + '</div>' +
+          (sale.note ? '<div class="note">' + esc(sale.note) + '</div>' : '') + '</div>' + act + '</div>';
+      } else {
+        saleHtml = '<div class="card sale-row none"><span class="grow">No sale recorded for this day</span>' +
+          '<button type="button" class="small" data-act="sale-edit" data-date="' + esc(g.date) + '">Add sale</button></div>';
+      }
+      return '<section class="day"><div class="day-head"><strong>' + esc(dayLabel(g.date)) + '</strong>' +
+        '<span>Sale ' + esc(sale ? money(num(sale.amount)) : '—') + ' · Purchases ' + esc(money(rc)) + ' · Paid ' + esc(money(pd)) + '</span></div>' +
+        saleHtml + g.items.map(entryHtml).join('') + '</section>';
+    }).join('');
+  }
+
+  function render() {
+    renderPeriod(); renderSummary(); renderSuppliers(); renderList();
+    $('sale-save').disabled = !(store && store.saveSale);
+    updateSalePreview();
+  }
+
+  /* ---------- form ---------- */
+  function updatePreview() {
+    var s = num($('f-stock').value), p = num($('f-paid').value), b = s - p, t;
+    if (s === 0 && p > 0) t = 'Payment only: reduces what you owe by <b>' + esc(money(p)) + '</b>';
+    else if (b < 0) t = 'Paid <b>' + esc(money(-b)) + '</b> more than this invoice, which goes toward earlier dues';
+    else if (b === 0 && s > 0) t = 'This invoice is fully paid';
+    else t = 'Balance on this entry: <b>' + esc(money(b)) + '</b>';
+    $('preview').innerHTML = t;
+  }
+  function showErr(msg) { var e = $('err'); if (msg) { e.textContent = msg; e.hidden = false; } else { e.hidden = true; e.textContent = ''; } }
+  function resetForm() {
+    editingId = null;
+    $('f-inv').value = ''; $('f-sup').value = ''; $('f-stock').value = ''; $('f-paid').value = ''; $('f-note').value = '';
+    $('f-date').value = todayStr();
+    $('form-title').textContent = 'Purchase invoice';
+    $('save').textContent = 'Add entry';
+    $('cancel').hidden = true;
+    showErr('');
+    updatePreview();
+  }
+
+  $('form').addEventListener('input', updatePreview);
+  $('form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    if (!store) return;
+    var date = $('f-date').value, sup = $('f-sup').value.trim();
+    var stock = num($('f-stock').value), paid = num($('f-paid').value);
+    if (!date) return showErr('Choose the invoice date.');
+    if (!sup) return showErr('Enter the distributor name.');
+    if (stock === 0 && paid === 0) return showErr('Enter the stock received, the amount paid, or both.');
+    showErr('');
+    var existing = editingId ? rows.filter(function (r) { return r.id === editingId; })[0] : null;
+    var data = {
+      date: date, supplier: sup, invoiceNo: $('f-inv').value.trim(), stock: stock, paid: paid,
+      note: $('f-note').value.trim(), createdAt: existing && existing.createdAt ? existing.createdAt : Date.now()
+    };
+    var btn = $('save'); btn.disabled = true;
+    var id = editingId;
+    store.save(id, data).then(function () {
+      if (period !== 'all' && date.slice(0, 7) !== period) period = date.slice(0, 7);
+      var keepDate = date;
+      resetForm();
+      $('f-date').value = keepDate;
+      render();
+      $('f-sup').focus();
+    }).catch(function (e) {
+      showErr(e && e.code === 'quota_exceeded' ? 'The ledger is full. Delete old entries to add new ones.' : 'Could not save this entry. Check your connection and try again.');
+    }).then(function () { btn.disabled = false; });
+  });
+  $('cancel').addEventListener('click', function () { resetForm(); });
+
+  $('period').addEventListener('change', function (e) { period = e.target.value; render(); });
+
+  document.querySelector('.tabs').addEventListener('click', function (e) {
+    var b = e.target.closest('.tab'); if (!b) return;
+    view = b.getAttribute('data-view');
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) { t.setAttribute('aria-selected', t === b ? 'true' : 'false'); });
+    confirmId = null;
+    renderList();
+  });
+
+  $('list').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-act]'); if (!b) return;
+    var act = b.getAttribute('data-act'), id = b.getAttribute('data-id');
+    var sdate = b.getAttribute('data-date');
+    if (act === 'sale-del') { confirmId = 'sale:' + sdate; renderList(); }
+    else if (act === 'sale-del-yes') {
+      b.disabled = true;
+      store.removeSale(sdate).then(function () { confirmId = null; render(); })
+        .catch(function () { confirmId = null; renderList(); });
+    } else if (act === 'sale-edit') {
+      fillSale(sdate);
+      $('sale-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (act === 'del') { confirmId = id; renderList(); }
+    else if (act === 'del-no') { confirmId = null; renderList(); }
+    else if (act === 'del-yes') {
+      b.disabled = true;
+      store.remove(id).then(function () {
+        confirmId = null;
+        if (editingId === id) resetForm();
+        render();
+      }).catch(function () { confirmId = null; renderList(); showErr('Could not delete that entry. Try again.'); });
+    } else if (act === 'edit') {
+      var r = rows.filter(function (x) { return x.id === id; })[0]; if (!r) return;
+      editingId = id;
+      $('f-date').value = r.date || todayStr(); $('f-sup').value = r.supplier || ''; $('f-inv').value = r.invoiceNo || '';
+      $('f-stock').value = num(r.stock) || ''; $('f-paid').value = num(r.paid) || ''; $('f-note').value = r.note || '';
+      $('form-title').textContent = 'Edit purchase invoice';
+      $('save').textContent = 'Save changes';
+      $('cancel').hidden = false;
+      showErr('');
+      updatePreview();
+      $('form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+
+  /* ---------- daily sale ---------- */
+  function saleFor(date) { return sales.filter(function (s) { return s.id === date; })[0]; }
+  function showSaleErr(msg) { var e = $('sale-err'); if (msg) { e.textContent = msg; e.hidden = false; } else { e.hidden = true; e.textContent = ''; } }
+  function fillSale(date) {
+    $('s-date').value = date;
+    var s = saleFor(date);
+    $('s-amount').value = s ? (num(s.amount) || '') : '';
+    $('s-note').value = s && s.note ? s.note : '';
+    showSaleErr('');
+    updateSalePreview();
+    $('s-amount').focus();
+  }
+  function updateSalePreview() {
+    var date = $('s-date').value, amt = $('s-amount').value;
+    var has = !!saleFor(date);
+    $('sale-save').textContent = has ? 'Update sale' : 'Save sale';
+    $('sale-preview').innerHTML = amt !== '' ? 'Sale for this day: <b>' + esc(money(num(amt))) + '</b>' : 'Enter the total sale for this day.';
+  }
+  $('s-date').addEventListener('change', function () { fillSale($('s-date').value); });
+  $('sale-form').addEventListener('input', updateSalePreview);
+  $('sale-form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    if (!store || !store.saveSale) return;
+    var date = $('s-date').value;
+    if (!date) return showSaleErr('Choose the date of the sale.');
+    if ($('s-amount').value === '') return showSaleErr('Enter the total sale for the day.');
+    showSaleErr('');
+    var btn = $('sale-save'); btn.disabled = true;
+    store.saveSale(date, { date: date, amount: num($('s-amount').value), note: $('s-note').value.trim(), updatedAt: Date.now() })
+      .then(function () {
+        if (period !== 'all' && date.slice(0, 7) !== period) period = date.slice(0, 7);
+        $('s-amount').value = ''; $('s-note').value = '';
+        render();
+      })
+      .catch(function () { showSaleErr('Could not save this sale. Check your connection and try again.'); })
+      .then(function () { btn.disabled = !(store && store.saveSale); });
+  });
+
+  /* ---------- backup ---------- */
+  var BKEY = 'stock-ledger-last-backup';
+  function lastBackup() { try { return parseInt(localStorage.getItem(BKEY) || '0', 10) || 0; } catch (e) { return 0; } }
+  function markBackup() { try { localStorage.setItem(BKEY, String(Date.now())); } catch (e) {} updateBackupStatus(); }
+  function updateBackupStatus() {
+    var t = lastBackup(), el = $('bk-status'), box = document.querySelector('.backup');
+    var days = t ? Math.floor((Date.now() - t) / 86400000) : null;
+    if (!t) el.textContent = 'No backup yet on this device';
+    else el.textContent = 'Last backup ' + (days === 0 ? 'today' : days + (days === 1 ? ' day' : ' days') + ' ago');
+    box.className = 'card backup' + (!t || days >= 7 ? ' stale' : '');
+  }
+  function bkMsg(t) { var e = $('bk-msg'); if (t) { e.textContent = t; e.hidden = false; } else { e.hidden = true; e.textContent = ''; } }
+  function offerFile(filename, data) {
+    try {
+      var type = /\.csv$/.test(filename) ? 'text/csv;charset=utf-8' : 'application/json';
+      var blob = new Blob([data], { type: type });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+      return Promise.resolve(true);
+    } catch (e) { bkMsg('Could not save the file. Try again.'); return Promise.resolve(false); }
+  }
+  function stamp() { return todayStr(); }
+  function cleanRow(r) { return { date: r.date, supplier: r.supplier, invoiceNo: r.invoiceNo || '', stock: num(r.stock), paid: num(r.paid), note: r.note || '', createdAt: r.createdAt || Date.now() }; }
+  function cleanSale(s) { return { date: s.date, amount: num(s.amount), note: s.note || '', updatedAt: s.updatedAt || Date.now() }; }
+
+  $('bk-save').addEventListener('click', function () {
+    bkMsg('');
+    if (!loaded) return bkMsg('Entries are still loading. Try again in a moment.');
+    var payload = { app: 'stock-ledger', version: 1, exportedAt: new Date().toISOString(), invoices: rows.map(cleanRow), sales: sales.map(cleanSale) };
+    offerFile('stock-ledger-backup-' + stamp() + '.json', JSON.stringify(payload, null, 2)).then(function (ok) {
+      if (ok) { markBackup(); bkMsg('Backup saved: ' + rows.length + ' invoices and ' + sales.length + ' daily sales.'); }
+    });
+  });
+
+  function csvCell(v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  $('bk-csv').addEventListener('click', function () {
+    bkMsg('');
+    if (!loaded) return bkMsg('Entries are still loading. Try again in a moment.');
+    var lines = [['Type', 'Date', 'Distributor', 'Invoice no', 'Stock received', 'Paid', 'Daily sale', 'Note'].join(',')];
+    sorted(rows).reverse().forEach(function (r) { lines.push(['Purchase', r.date, r.supplier, r.invoiceNo || '', num(r.stock), num(r.paid), '', r.note || ''].map(csvCell).join(',')); });
+    sales.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (s) { lines.push(['Sale', s.date, '', '', '', '', num(s.amount), s.note || ''].map(csvCell).join(',')); });
+    offerFile('stock-ledger-' + stamp() + '.csv', '﻿' + lines.join('\n')).then(function (ok) { if (ok) bkMsg('CSV exported. Open it in Excel or Sheets.'); });
+  });
+
+  function sig(r) { return [r.date, (r.supplier || '').trim().toLowerCase(), (r.invoiceNo || '').trim(), num(r.stock), num(r.paid), (r.note || '').trim()].join('|'); }
+  $('bk-restore').addEventListener('click', function () { bkMsg(''); $('bk-file').value = ''; $('bk-file').click(); });
+  $('bk-file').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0]; if (!f) return;
+    if (!store || !loaded) return bkMsg('Entries are still loading. Try again in a moment.');
+    var fr = new FileReader();
+    fr.onerror = function () { bkMsg('Could not read that file.'); };
+    fr.onload = function () {
+      var data;
+      try { data = JSON.parse(String(fr.result)); } catch (er) { return bkMsg('That file is not a valid backup.'); }
+      if (!data || data.app !== 'stock-ledger' || !Array.isArray(data.invoices)) return bkMsg('That file is not a Stock Ledger backup.');
+      var have = {}; rows.forEach(function (r) { have[sig(r)] = 1; });
+      var addRows = [], skipped = 0;
+      data.invoices.forEach(function (r) {
+        if (!r || !r.date || !r.supplier) return;
+        var c = cleanRow(r);
+        if (have[sig(c)]) { skipped++; return; }
+        have[sig(c)] = 1; addRows.push(c);
+      });
+      var haveSale = {}; sales.forEach(function (s) { haveSale[s.id] = 1; });
+      var addSales = [];
+      (Array.isArray(data.sales) ? data.sales : []).forEach(function (s) { if (s && s.date && !haveSale[s.date]) addSales.push(cleanSale(s)); });
+      if (!addRows.length && !addSales.length) return bkMsg('Nothing to restore. Everything in this backup is already in the ledger.');
+      bkMsg('Restoring…');
+      var chain = Promise.resolve();
+      addRows.forEach(function (c) { chain = chain.then(function () { return store.save(null, c); }); });
+      addSales.forEach(function (c) { chain = chain.then(function () { return store.saveSale(c.date, c); }); });
+      chain.then(function () {
+        bkMsg('Restored ' + addRows.length + ' invoices and ' + addSales.length + ' daily sales. ' + skipped + ' invoices were already there and were skipped.');
+        render();
+      }).catch(function () { bkMsg('Restore stopped part way. Run it again; entries already restored are skipped.'); });
+    };
+    fr.readAsText(f);
+  });
+
+  resetForm();
+  $('s-date').value = todayStr();
+  updateBackupStatus();
+  init();
+})();
+</script>
+<script>if("serviceWorker"in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}</script>
+</body></html>
